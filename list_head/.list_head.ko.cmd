@@ -1,0 +1,1 @@
+cmd_/home/mylinux/list_head/list_head.ko := ld -r -m elf_i386 -T /usr/src/kernels/2.6.35.6-45.fc14.i686/scripts/module-common.lds --build-id -o /home/mylinux/list_head/list_head.ko /home/mylinux/list_head/list_head.o /home/mylinux/list_head/list_head.mod.o

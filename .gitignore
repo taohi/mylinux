@@ -4,6 +4,7 @@
 *.mod.*
 *.order
 *.symvers
+*.cmd
 
 # Libraries
 *.lib

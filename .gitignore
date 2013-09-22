@@ -1,5 +1,9 @@
 # Object files
 *.o
+*.ko
+*.mod.*
+*.order
+*.symvers
 
 # Libraries
 *.lib
@@ -15,3 +19,6 @@
 *.exe
 *.out
 *.app
+
+#swap files
+*.swp

@@ -1,1 +1,1 @@
-cmd_/home/kthread/mythread.ko := ld -r -m elf_i386 -T /usr/src/kernels/2.6.35.6-45.fc14.i686/scripts/module-common.lds --build-id -o /home/kthread/mythread.ko /home/kthread/mythread.o /home/kthread/mythread.mod.o
+cmd_/home/mylinux/kthread/mythread.ko := ld -r -m elf_i386 -T /usr/src/kernels/2.6.35.14-106.fc14.i686/scripts/module-common.lds --build-id -o /home/mylinux/kthread/mythread.ko /home/mylinux/kthread/mythread.o /home/mylinux/kthread/mythread.mod.o

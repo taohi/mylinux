@@ -1,2 +1,2 @@
-/home/kthread/mythread.ko
-/home/kthread/mythread.o
+/home/mylinux/kthread/mythread.ko
+/home/mylinux/kthread/mythread.o

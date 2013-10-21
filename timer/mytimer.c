@@ -6,12 +6,13 @@
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct timer_list mytimer;
-
+int counter = 0;
 static void mytimer_handler(unsigned long data)
 {
-    printk("mytimer_handler called.\n");
-    printk("jiffies at init_timer:%lu.\n",data);
-    printk("jiffies now:%lu.\n",jiffies);
+    printk("counter now:%d.\n",counter);
+    counter ++;
+    if (counter >20)
+        counter = 0;
     mod_timer(&mytimer,jiffies + HZ);
 }
 

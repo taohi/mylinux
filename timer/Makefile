@@ -10,8 +10,6 @@ clean:
 	rm -rf *.ko *.mod.c *.o *.order *.symvers *.out
 install:
 	insmod mytimer.ko
-	#mknod /dev/mmap_dev c 244 0
 uninstall:
 	rmmod mytimer.ko
-	#rm /dev/mmap_dev
 endif

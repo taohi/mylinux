@@ -7,7 +7,7 @@ default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 #gcc test.c -o test.out
 clean:
-	rm -rf *.ko *.mod.c *.o *.order *.symvers *.out
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
 install:
 	insmod mytimer.ko
 uninstall:

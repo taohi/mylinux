@@ -10,6 +10,7 @@
 #include <asm/io.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <linux/semaphore.h>
 
 #define GLOBALMEM_SIZE  0x100
 #define MEM_CLEAR       0x1
@@ -21,6 +22,7 @@ static int globalmem_major = GLOBALMEM_MAJOR;
 struct globalmem_dev {
     struct cdev cdev;
     unsigned char mem[GLOBALMEM_SIZE];
+    struct semaphore sem;
 };
 
 struct globalmem_dev *globalmem_devp;
@@ -44,7 +46,10 @@ static int globalmem_ioctl(struct inode *inodep,struct file *filp,unsigned int c
     switch (cmd)
     {
         case MEM_CLEAR:
+            if(down_interruptible(&dev->sem))
+                return -ERESTARTSYS;
             memset(dev->mem,0,GLOBALMEM_SIZE);
+            up(&dev->sem);
             printk(KERN_INFO "globalmem is set to zero\n");
             break;
 
@@ -66,6 +71,8 @@ static ssize_t globalmem_read(struct file *filp,char __user *buf,size_t size,lof
     if(count > GLOBALMEM_SIZE -p)
         count = GLOBALMEM_SIZE -p;
     
+    if(down_interruptible(&dev->sem))
+        return -ERESTARTSYS;
     if(copy_to_user(buf,(void *)(dev->mem + p),count))
         ret = -EFAULT;
     else{
@@ -73,6 +80,7 @@ static ssize_t globalmem_read(struct file *filp,char __user *buf,size_t size,lof
         ret  = count;
         printk(KERN_INFO "read %u bytes from %lu\n",count,p);
     }
+    up(&dev->sem);
     return ret;
 }
 
@@ -87,6 +95,8 @@ static ssize_t globalmem_write(struct file *filp,const char __user *buf,size_t s
         return 0;
     if(count > GLOBALMEM_SIZE -p)
         count = GLOBALMEM_SIZE -p;
+    if(down_interruptible(&dev->sem))
+        return -ERESTARTSYS;
 
     if(copy_from_user(dev->mem+p,buf,count))
         ret = -EFAULT;
@@ -95,6 +105,7 @@ static ssize_t globalmem_write(struct file *filp,const char __user *buf,size_t s
         ret=count;
         printk(KERN_INFO "wrote %u bytes from %lu\n",count,p);
     }
+    up(&dev->sem);
     return ret;
 }
 
@@ -174,6 +185,7 @@ int globalmem_init(void)
     }
     memset(globalmem_devp,0,sizeof(struct globalmem_dev));
     globalmem_setup_cdev(globalmem_devp,0);
+    init_MUTEX(&globalmem_devp->sem);
     return 0;
 
 fail_malloc:

@@ -1,12 +1,13 @@
 #include <linux/module.h>
 #include <linux/types.h>
+#include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/errno.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/cdev.h>
-#include <linux/io.h>
+#include <asm/io.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 
@@ -15,7 +16,7 @@
 #define GLOBALMEM_MAJOR 250
 
 
-static int globalmem_major  GLOBALMEM_MAJOR;
+static int globalmem_major = GLOBALMEM_MAJOR;
 
 struct globalmem_dev {
     struct cdev cdev;
@@ -34,6 +35,7 @@ int globalmem_open(struct inode *inode,struct file *filp)
 int globalmem_release(struct inode *inode,struct file *filp)
 {
     printk("In function %s\n",__func__);
+    return 0;
 }
 
 static int globalmem_ioctl(struct inode *inodep,struct file *filp,unsigned int cmd,unsigned long arg)
@@ -52,7 +54,7 @@ static int globalmem_ioctl(struct inode *inodep,struct file *filp,unsigned int c
     return 0;
 }
 
-static ssize_t globalmem_read(struct file *filp,char __user *buf,size_t size,loff_t ppos)
+static ssize_t globalmem_read(struct file *filp,char __user *buf,size_t size,loff_t *ppos)
 {
     unsigned long p= *ppos;
     unsigned int count = size;
@@ -122,13 +124,14 @@ static loff_t globalmem_llseek(struct file *filp,loff_t offset,int orig)
                 ret = -EINVAL;
                 break;
             }
-            filp->pos+=offset;
+            filp->f_pos+=offset;
             ret=filp->f_pos;
             break;
         default:
                 ret = -EINVAL;
                 break;
     }
+    return ret;
 }
 
 static const struct file_operations globalmem_fops = {
@@ -148,7 +151,7 @@ static void globalmem_setup_cdev(struct globalmem_dev *dev,int index)
     dev->cdev.owner = THIS_MODULE;
     err=cdev_add(&dev->cdev,devno,1);
     if(err)
-        printk(KERN_NOTICE "Error %s adding globalmem %d\n",err,index);
+        printk(KERN_NOTICE "Error %d adding globalmem %d\n",err,index);
 }
 
 int globalmem_init(void)
@@ -164,5 +167,31 @@ int globalmem_init(void)
     if(result < 0)
         return result;
 
-    globalmem_devp=kmalloc();
+    globalmem_devp=kmalloc(sizeof(struct globalmem_dev),GFP_KERNEL);
+    if(!globalmem_devp){
+        result = -ENOMEM;
+        goto fail_malloc;
+    }
+    memset(globalmem_devp,0,sizeof(struct globalmem_dev));
+    globalmem_setup_cdev(globalmem_devp,0);
+    return 0;
+
+fail_malloc:
+    unregister_chrdev_region(devno,1);
+    return result;
 }
+
+void globalmem_exit(void)
+{
+    cdev_del(&globalmem_devp->cdev);
+    kfree(globalmem_devp);
+    unregister_chrdev_region(MKDEV(globalmem_major,0),1);
+}
+
+MODULE_AUTHOR("t4ohi");
+MODULE_LICENSE("Dual BSD/GPL");
+
+module_param(globalmem_major,int,S_IRUGO);
+
+module_init(globalmem_init);
+module_exit(globalmem_exit);

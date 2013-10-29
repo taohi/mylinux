@@ -142,7 +142,7 @@ static ssize_t globalfifo_write(struct file *filp,char __user *buf,size_t count,
         goto out;
     }
     else{
-        memcpy(dev->mem,dev->mem+count,dev->current_len-count);
+        //memcpy(dev->mem,dev->mem+count,dev->current_len-count);
         dev->current_len+=count;
 
         printk(KERN_INFO "wrote %d bytes,current_len:%d\n",count,dev->current_len);

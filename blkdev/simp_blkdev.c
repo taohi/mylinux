@@ -6,7 +6,7 @@
 #include <linux/types.h>
 
 #define SIMP_BLKDEV_DISKNAME "simp_blkdev"
-#define SIMP_BLKDEV_DEVICEMAJOR 249
+#define SIMP_BLKDEV_DEVICEMAJOR COMPAQ_SMART2_MAJOR
 #define SIMP_BLKDEV_BYTES (16*1024*1024)
 
 static struct request_queue *simp_blkdev_queue;
@@ -30,7 +30,7 @@ static void simp_blkdev_do_request(struct request_queue *q)
        len =blk_rq_cur_sectors(req)<<9;
        if(start + len >SIMP_BLKDEV_BYTES)
        {
-           printk(KERN_ERR "bad request\n");
+           printk(KERN_ERR SIMP_BLKDEV_DISKNAME ":bad access:block=%lu,count=%u\n",blk_rq_pos(req), blk_rq_cur_sectors(req));
            err = -EIO;
            goto done;
        }

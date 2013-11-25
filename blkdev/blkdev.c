@@ -3,6 +3,7 @@
 #include <linux/types.h>
 #include <linux/genhd.h>
 #include <linux/blkdev.h>
+#include <linux/elevator.h>
 
 #define BLKDEV_DISKNAME "blkdev"
 #define BLKDEV_DEVICEMAJOR COMPAQ_SMART2_MAJOR
@@ -45,7 +46,6 @@ done:
 static int __init blkdev_init(void)
 {
     int ret;
-
     blkdev_queue = blk_init_queue(blkdev_do_request, NULL);
     if(!blkdev_queue) {
         ret = -ENOMEM;

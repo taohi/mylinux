@@ -1,4 +1,5 @@
 ifneq ($(KERNELRELEASE),)
+	#obj-m:=blkdev.o
 	obj-m:=simp_blkdev.o
 else
 	KERNELDIR ?= /lib/modules/$(shell uname -r)/build

@@ -25,6 +25,12 @@ static int blkdev_make_request(struct request_queue *q,struct bio *bio)
     int i;
     void *dsk_mem;
 
+    if((bio->bi_sector<<9)+bio->bi_size >BLKDEV_BYTES)
+    {
+        printk(KERN_ERR "bad request:out of blkdev size!\n");
+        bio_endio(bio,-EIO);
+    }
+
     dsk_mem = blkdev_data + (bio->bi_sector << 9);
     bio_for_each_segment(bvec,bio,i)
     {

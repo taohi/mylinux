@@ -9,7 +9,7 @@
 #define BLKDEV_DISKNAME "blkdev"
 #define BLKDEV_DEVICEMAJOR COMPAQ_SMART2_MAJOR
 #define BLKDEV_BYTES (16*1024*1024) //16M
-
+#define BLKDEV_MAXPARTITIONS 4
 unsigned char blkdev_data[BLKDEV_BYTES];
 
 static struct gendisk *blkdev_disk;
@@ -69,7 +69,7 @@ static int __init blkdev_init(void)
         goto err_alloc_queue;
     }
 
-    blkdev_disk = alloc_disk(1);
+    blkdev_disk = alloc_disk(BLKDEV_MAXPARTITIONS);
     if(!blkdev_disk) {
         goto err_alloc_disk;
     }

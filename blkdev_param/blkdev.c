@@ -19,6 +19,9 @@
 #define BLKDEV_DATASEGSIZE  (PAGE_SIZE << BLKDEV_DATASEGORDER)
 #define BLKDEV_DATASEGMASK  (~(BLKDEV_DATASEGSIZE - 1))
 
+#define BLKDEV_SECTORSHIFT (9)
+#define BLKDEV_SECTORSIZE (1ULL << BLKDEV_SECTORSHIFT)
+#define BLKDEV_SECTOR_MASK (~(BLKDEV_SECTORSIZE-1))
 
 static struct radix_tree_root blkdev_data;
 static struct gendisk *blkdev_disk;
@@ -55,7 +58,7 @@ int getparam(void)
         default:
             return -EINVAL;
     }
-    blkdev_bytes=(blkdev_bytes+(1<<9)-1)&~((1ULL<<9)-1);
+    blkdev_bytes=(blkdev_bytes+BLKDEV_SECTORSIZE-1)&BLKDEV_SECTOR_MASK;
         return 0;
 }
 
@@ -120,7 +123,7 @@ static int blkdev_make_request(struct request_queue *q, struct bio *bio)
         int i;
         unsigned long long dsk_offset;
 
-        if ((bio->bi_sector << 9) + bio->bi_size > blkdev_bytes) {
+        if ((bio->bi_sector << BLKDEV_SECTORSHIFT) + bio->bi_size > blkdev_bytes) {
                 printk(KERN_ERR BLKDEV_DISKNAME
                         ": bad request: block=%llu, count=%u\n",
                         (unsigned long long)bio->bi_sector, bio->bi_size);
@@ -128,7 +131,7 @@ static int blkdev_make_request(struct request_queue *q, struct bio *bio)
                 return 0;
         }
 
-        dsk_offset = bio->bi_sector << 9;
+        dsk_offset = bio->bi_sector << BLKDEV_SECTORSHIFT;
         bio_for_each_segment(bvec, bio, i) {
                 unsigned int count_done, count_current;
                 void *iovec_mem;
@@ -224,7 +227,7 @@ static int __init blkdev_init(void)
     blkdev_disk->first_minor = 0;
     blkdev_disk->fops = &blkdev_fops;
     blkdev_disk->queue = blkdev_queue;
-    set_capacity(blkdev_disk, blkdev_bytes>>9); 
+    set_capacity(blkdev_disk, blkdev_bytes>>BLKDEV_SECTORSHIFT); 
     add_disk(blkdev_disk);
     return 0;
 

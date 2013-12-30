@@ -1,0 +1,34 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+BLKDEV_DATASEGMASK	blkdev.c	20;"	d	file:
+BLKDEV_DATASEGORDER	blkdev.c	17;"	d	file:
+BLKDEV_DATASEGSHIFT	blkdev.c	18;"	d	file:
+BLKDEV_DATASEGSIZE	blkdev.c	19;"	d	file:
+BLKDEV_DEVICEMAJOR	blkdev.c	14;"	d	file:
+BLKDEV_DISKNAME	blkdev.c	13;"	d	file:
+BLKDEV_MAXPARTITIONS	blkdev.c	15;"	d	file:
+BLKDEV_SECTORSHIFT	blkdev.c	22;"	d	file:
+BLKDEV_SECTORSIZE	blkdev.c	23;"	d	file:
+BLKDEV_SECTOR_MASK	blkdev.c	24;"	d	file:
+KERNELDIR	Makefile	/^	KERNELDIR ?= \/lib\/modules\/$(shell uname -r)\/build$/;"	m
+PWD	Makefile	/^	PWD := $(shell pwd)$/;"	m
+alloc_diskmem	blkdev.c	/^int alloc_diskmem(void)$/;"	f
+blkdev_bytes	blkdev.c	/^static unsigned long long blkdev_bytes;$/;"	v	file:
+blkdev_data	blkdev.c	/^static struct radix_tree_root blkdev_data;$/;"	v	typeref:struct:radix_tree_root	file:
+blkdev_disk	blkdev.c	/^static struct gendisk *blkdev_disk;$/;"	v	typeref:struct:gendisk	file:
+blkdev_exit	blkdev.c	/^module_exit(blkdev_exit);$/;"	v
+blkdev_exit	blkdev.c	/^static void __exit blkdev_exit(void)$/;"	f	file:
+blkdev_fops	blkdev.c	/^static struct block_device_operations blkdev_fops = {$/;"	v	typeref:struct:block_device_operations	file:
+blkdev_getgeo	blkdev.c	/^static int blkdev_getgeo(struct block_device *bdev,struct hd_geometry *geo)$/;"	f	file:
+blkdev_init	blkdev.c	/^module_init(blkdev_init);$/;"	v
+blkdev_init	blkdev.c	/^static int __init blkdev_init(void)$/;"	f	file:
+blkdev_make_request	blkdev.c	/^static int blkdev_make_request(struct request_queue *q, struct bio *bio)$/;"	f	file:
+blkdev_param_size	blkdev.c	/^static char *blkdev_param_size  ="16M";$/;"	v	file:
+blkdev_queue	blkdev.c	/^static struct request_queue *blkdev_queue;$/;"	v	typeref:struct:request_queue	file:
+free_diskmem	blkdev.c	/^void free_diskmem(void)$/;"	f
+getparam	blkdev.c	/^int getparam(void)$/;"	f
+obj-m	Makefile	/^	obj-m:=blkdev.o$/;"	m

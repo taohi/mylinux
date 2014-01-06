@@ -120,91 +120,96 @@ void free_diskmem(void)
     }
 }
 
-static int blkdev_make_request(struct request_queue *q, struct bio *bio)
+static int blkdev_trans_oneseg(struct page* start_page,unsigned long offset,void *buf,unsigned int len,int dir)
 {
-        struct bio_vec *bvec;
-        int i;
-        unsigned long long dsk_offset;
-
-        if ((bio->bi_sector << BLKDEV_SECTORSHIFT) + bio->bi_size > blkdev_bytes) {
-                printk(KERN_ERR BLKDEV_DISKNAME
-                        ": bad request: block=%llu, count=%u\n",
-                        (unsigned long long)bio->bi_sector, bio->bi_size);
-                bio_endio(bio, -EIO);
-                return 0;
-        }
-
-        dsk_offset = bio->bi_sector << BLKDEV_SECTORSHIFT;
-        bio_for_each_segment(bvec, bio, i) {
-                unsigned int count_done, count_current;
-                void *iovec_mem;
-                void *dsk_mem;
-                struct page *dsk_page;
-                iovec_mem = kmap(bvec->bv_page) + bvec->bv_offset;
-
-                count_done = 0;
-                while (count_done < bvec->bv_len) {
-                        count_current = min(bvec->bv_len - count_done,
-                                (unsigned int)(BLKDEV_DATASEGSIZE
-                                - ((dsk_offset + count_done) & ~BLKDEV_DATASEGMASK)));
-
-                        dsk_page = radix_tree_lookup(&blkdev_data,
-                                (dsk_offset + count_done) >> BLKDEV_DATASEGSHIFT);
-                        if (!dsk_page) {
-                                printk(KERN_ERR BLKDEV_DISKNAME
-                                        ": search memory failed: %llu\n",
-                                        (dsk_offset + count_done)
-                                        >> BLKDEV_DATASEGSHIFT);
-                                kunmap(bvec->bv_page);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
-                                bio_endio(bio, 0, -EIO);
-#else
-                                bio_endio(bio, -EIO);
-#endif
-                                return 0;
-                        }
-                        dsk_mem = page_address(dsk_page);
-                        dsk_mem += (dsk_offset + count_done) & ~BLKDEV_DATASEGSHIFT;
-
-                        switch (bio_rw(bio)) {
-                        case READ:
-                        case READA:
-                                memcpy(iovec_mem + count_done, dsk_mem,
-                                        count_current);
-                                break;
-                        case WRITE:
-                                memcpy(dsk_mem, iovec_mem + count_done,
-                                        count_current);
-                                break;
-                        default:
-                                printk(KERN_ERR BLKDEV_DISKNAME
-                                        ": unknown value of bio_rw: %lu\n",
-                                        bio_rw(bio));
-                                kunmap(bvec->bv_page);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
-                                bio_endio(bio, 0, -EIO);
-#else
-                                bio_endio(bio, -EIO);
-#endif
-                                return 0;
-                        }
-                        count_done += count_current;
-                }
-
-                kunmap(bvec->bv_page);
-                dsk_offset += bvec->bv_len;
-        }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
-        bio_endio(bio, bio->bi_size, 0);
-#else
-        bio_endio(bio, 0);
-#endif
-
-        return 0;
+    void *dsk_mem;
+    dsk_mem = page_address(start_page);
+    if(!dsk_mem)
+    {
+        printk(KERN_ERR BLKDEV_DISKNAME ":get page's addr failed.%p\n",start_page);
+        return -ENOMEM;
+    }
+    dsk_mem += offset;
+    if(!dir)
+        memcpy(buf,dsk_mem,len);
+    else
+        memcpy(dsk_mem,buf,len);
+    return 0;
 }
 
+static int blkdev_trans(unsigned long long dsk_offset,void *buf,unsigned int len,int dir)
+{
+    unsigned int done_cnt;
+    struct page *this_first_page;
+    unsigned int this_off;
+    unsigned int this_cnt;
 
+    done_cnt = 0;
+    while(done_cnt < len)
+    {
+        this_off = (dsk_offset + done_cnt)&~BLKDEV_DATASEGMASK;
+        this_cnt = min(len - done_cnt,(unsigned int)BLKDEV_DATASEGSIZE - this_off);
+        this_first_page = radix_tree_lookup(&blkdev_data,(dsk_offset + done_cnt)>>BLKDEV_DATASEGSHIFT);
+        if(!this_first_page)
+        {
+            printk(KERN_ERR BLKDEV_DISKNAME ":search memory failed:%llu\n",(dsk_offset+done_cnt)>>BLKDEV_DATASEGSHIFT);
+            return -ENOENT;
+        }
+        if(IS_ERR_VALUE(blkdev_trans_oneseg(this_first_page,this_off,buf+done_cnt,this_cnt,dir)))
+            return -EIO;
+        done_cnt+=this_cnt;
+    }
+    return 0;
+}
+
+static int blkdev_make_request(struct request_queue *q, struct bio *bio)
+{
+    int dir;
+    unsigned long long dsk_offset;
+    struct bio_vec *bvec;
+    int i;
+    void *iovec_mem;
+
+    switch (bio_rw(bio)) {
+        case READ:
+        case READA:
+            dir = 0;
+            break;
+        case WRITE:
+            dir = 1;
+            break;
+        default:
+            printk(KERN_ERR BLKDEV_DISKNAME ": unknown value of bio_rw: %lu\n",bio_rw(bio));
+            goto bio_err;
+    }
+            
+    if ((bio->bi_sector << BLKDEV_SECTORSHIFT) + bio->bi_size > blkdev_bytes) {
+        printk(KERN_ERR BLKDEV_DISKNAME ": bad request: block=%llu, count=%u\n", (unsigned long long)bio->bi_sector, bio->bi_size);
+        bio_endio(bio, -EIO);
+        return 0;
+    }
+
+    dsk_offset = bio->bi_sector << BLKDEV_SECTORSHIFT;
+    bio_for_each_segment(bvec, bio,i) 
+    {
+        iovec_mem = kmap(bvec->bv_page) + bvec->bv_offset;
+        if(!iovec_mem)
+        {
+            printk(KERN_ERR BLKDEV_DISKNAME ":map iovec page failed:%p\n",bvec->bv_page);
+            goto bio_err;
+        }
+        if(IS_ERR_VALUE(blkdev_trans(dsk_offset,iovec_mem,bvec->bv_len,dir)))
+            goto bio_err;
+        kunmap(bvec->bv_page);
+        dsk_offset+=bvec->bv_len;
+    }
+    bio_endio(bio, 0);
+    return 0;
+
+bio_err:
+    bio_endio(bio,-EIO);
+    return 0;
+}
 
 static int __init blkdev_init(void)
 {

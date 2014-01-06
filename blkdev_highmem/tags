@@ -16,6 +16,8 @@ BLKDEV_SECTORSIZE	blkdev.c	23;"	d	file:
 BLKDEV_SECTOR_MASK	blkdev.c	24;"	d	file:
 KERNELDIR	Makefile	/^	KERNELDIR ?= \/lib\/modules\/$(shell uname -r)\/build$/;"	m
 PWD	Makefile	/^	PWD := $(shell pwd)$/;"	m
+__this_module	blkdev.mod.c	/^struct module __this_module$/;"	v	typeref:struct:module
+__used	blkdev.mod.c	/^__used$/;"	v	file:
 alloc_diskmem	blkdev.c	/^int alloc_diskmem(void)$/;"	f
 blkdev_bytes	blkdev.c	/^static unsigned long long blkdev_bytes;$/;"	v	file:
 blkdev_data	blkdev.c	/^static struct radix_tree_root blkdev_data;$/;"	v	typeref:struct:radix_tree_root	file:
@@ -29,6 +31,8 @@ blkdev_init	blkdev.c	/^static int __init blkdev_init(void)$/;"	f	file:
 blkdev_make_request	blkdev.c	/^static int blkdev_make_request(struct request_queue *q, struct bio *bio)$/;"	f	file:
 blkdev_param_size	blkdev.c	/^static char *blkdev_param_size  ="16M";$/;"	v	file:
 blkdev_queue	blkdev.c	/^static struct request_queue *blkdev_queue;$/;"	v	typeref:struct:request_queue	file:
+blkdev_trans	blkdev.c	/^static int blkdev_trans(unsigned long long dsk_offset,void *buf,unsigned int len,int dir)$/;"	f	file:
+blkdev_trans_oneseg	blkdev.c	/^static int blkdev_trans_oneseg(struct page* start_page,unsigned long offset,void *buf,unsigned int len,int dir)$/;"	f	file:
 free_diskmem	blkdev.c	/^void free_diskmem(void)$/;"	f
 getparam	blkdev.c	/^int getparam(void)$/;"	f
 obj-m	Makefile	/^	obj-m:=blkdev.o$/;"	m

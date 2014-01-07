@@ -1,0 +1,276 @@
+#include <linux/module.h>
+#include <linux/fs.h>
+#include <linux/types.h>
+#include <linux/genhd.h>
+#include <linux/blkdev.h>
+#include <linux/elevator.h>
+#include <linux/bio.h>
+#include <linux/hdreg.h>
+#include <linux/radix-tree.h>
+#include <linux/version.h>
+#include <linux/moduleparam.h>
+
+#define BLKDEV_DISKNAME "blkdev"
+#define BLKDEV_DEVICEMAJOR COMPAQ_SMART2_MAJOR
+#define BLKDEV_MAXPARTITIONS 4
+
+#define BLKDEV_DATASEGORDER (2)
+#define BLKDEV_DATASEGSHIFT (PAGE_SHIFT + BLKDEV_DATASEGORDER)
+#define BLKDEV_DATASEGSIZE  (PAGE_SIZE << BLKDEV_DATASEGORDER)
+#define BLKDEV_DATASEGMASK  (~(BLKDEV_DATASEGSIZE - 1))
+
+#define BLKDEV_SECTORSHIFT (9)
+#define BLKDEV_SECTORSIZE (1ULL << BLKDEV_SECTORSHIFT)
+#define BLKDEV_SECTOR_MASK (~(BLKDEV_SECTORSIZE-1))
+
+static struct radix_tree_root blkdev_data;
+static struct gendisk *blkdev_disk;
+static struct request_queue *blkdev_queue;
+
+static char *blkdev_param_size  ="16M";
+module_param_named(size,blkdev_param_size,charp,S_IRUGO);
+static unsigned long long blkdev_bytes;
+
+void free_diskmem(void);
+int alloc_diskmem(void);
+
+int getparam(void)
+{
+    char uint;
+    char tailc;
+    if(sscanf(blkdev_param_size,"%llu%c%c",&blkdev_bytes,&uint,&tailc)!=2)
+        return -EINVAL;
+    if(!blkdev_bytes)
+        return -EINVAL;
+    switch (uint){
+        case 'g':
+        case 'G':
+            blkdev_bytes<<=30;
+            break;
+        case 'm':
+        case 'M':
+            blkdev_bytes<<=20;
+            break;
+        case 'k':
+        case 'K':
+            blkdev_bytes<<=10;
+            break;
+        default:
+            return -EINVAL;
+    }
+    blkdev_bytes=(blkdev_bytes+BLKDEV_SECTORSIZE-1)&BLKDEV_SECTOR_MASK;
+        return 0;
+}
+
+static int blkdev_getgeo(struct block_device *bdev,struct hd_geometry *geo)
+{
+    if(blkdev_bytes<16*1024*1024){
+        geo->heads = 1;
+        geo->sectors = 1;
+    }else if(blkdev_bytes < 512*1024*1024){
+        geo->heads=1;
+        geo->sectors=32;
+    }
+    return 0;
+}
+
+static struct block_device_operations blkdev_fops = {
+ .owner = THIS_MODULE,
+ .getgeo=blkdev_getgeo,
+};
+
+int alloc_diskmem(void)
+{
+    int ret,i;
+    struct page *page;
+    INIT_RADIX_TREE(&blkdev_data,GFP_KERNEL);
+    for(i=0;i<(blkdev_bytes + BLKDEV_DATASEGSIZE - 1)>>BLKDEV_DATASEGSHIFT;i++)
+    {
+        //p=(void *)__get_free_pages(GFP_KERNEL|__GFP_ZERO,BLKDEV_DATASEGORDER);
+        page = alloc_pages(GFP_KERNEL|__GFP_ZERO|__GFP_HIGHMEM,BLKDEV_DATASEGORDER);
+        if(!page){
+            ret = -ENOMEM;
+            goto err_alloc;
+        }
+        ret = radix_tree_insert(&blkdev_data,i,page);
+        if(IS_ERR_VALUE(ret))
+            goto err_radix_tree_insert;
+    }
+    return 0;
+
+err_radix_tree_insert:
+    __free_pages(page,BLKDEV_DATASEGORDER);
+err_alloc:
+    free_diskmem();
+    return ret;
+}
+
+void free_diskmem(void)
+{
+    int i;
+  //  void *p;
+    struct page *page;
+    for(i=0;i<(blkdev_bytes + BLKDEV_DATASEGSIZE - 1)>>BLKDEV_DATASEGSHIFT;i++)
+    {
+        page = radix_tree_lookup(&blkdev_data,i);
+        radix_tree_delete(&blkdev_data,i);
+        __free_pages(page,BLKDEV_DATASEGORDER);
+    }
+}
+
+static int blkdev_trans_oneseg(struct page* start_page,unsigned long offset,void *buf,unsigned int len,int dir)
+{
+    unsigned done_cnt;
+    struct page *this_page;
+    unsigned int this_off;
+    unsigned int this_cnt;
+    void *dsk_mem;
+
+    done_cnt = 0;
+    while(done_cnt<len)
+    {
+        this_page = start_page +((offset+done_cnt)>>PAGE_SHIFT);
+        this_off = (offset + done_cnt)&~PAGE_MASK;
+        this_cnt = min(len-done_cnt,(unsigned int)PAGE_SIZE - this_off);
+        dsk_mem = kmap(this_page);
+        if(!dsk_mem)
+        {
+            printk(KERN_ERR BLKDEV_DISKNAME ":get page's addr failed.%p\n",start_page);
+            return -ENOMEM;
+        }
+        dsk_mem += this_off;
+        if(!dir)
+            memcpy(buf+done_cnt,dsk_mem,this_cnt);
+        else
+            memcpy(dsk_mem,buf+done_cnt,this_cnt);
+        kunmap(this_page);
+        done_cnt +=this_cnt; 
+    }
+    return 0;
+}
+
+static int blkdev_trans(unsigned long long dsk_offset,void *buf,unsigned int len,int dir)
+{
+    unsigned int done_cnt;
+    struct page *this_first_page;
+    unsigned int this_off;
+    unsigned int this_cnt;
+
+    done_cnt = 0;
+    while(done_cnt < len)
+    {
+        this_off = (dsk_offset + done_cnt)&~BLKDEV_DATASEGMASK;
+        this_cnt = min(len - done_cnt,(unsigned int)BLKDEV_DATASEGSIZE - this_off);
+        this_first_page = radix_tree_lookup(&blkdev_data,(dsk_offset + done_cnt)>>BLKDEV_DATASEGSHIFT);
+        if(!this_first_page)
+        {
+            printk(KERN_ERR BLKDEV_DISKNAME ":search memory failed:%llu\n",(dsk_offset+done_cnt)>>BLKDEV_DATASEGSHIFT);
+            return -ENOENT;
+        }
+        if(IS_ERR_VALUE(blkdev_trans_oneseg(this_first_page,this_off,buf+done_cnt,this_cnt,dir)))
+            return -EIO;
+        done_cnt+=this_cnt;
+    }
+    return 0;
+}
+
+static int blkdev_make_request(struct request_queue *q, struct bio *bio)
+{
+    int dir;
+    unsigned long long dsk_offset;
+    struct bio_vec *bvec;
+    int i;
+    void *iovec_mem;
+
+    switch (bio_rw(bio)) {
+        case READ:
+        case READA:
+            dir = 0;
+            break;
+        case WRITE:
+            dir = 1;
+            break;
+        default:
+            printk(KERN_ERR BLKDEV_DISKNAME ": unknown value of bio_rw: %lu\n",bio_rw(bio));
+            goto bio_err;
+    }
+
+    if ((bio->bi_sector << BLKDEV_SECTORSHIFT) + bio->bi_size > blkdev_bytes) {
+        printk(KERN_ERR BLKDEV_DISKNAME ": bad request: block=%llu, count=%u\n", (unsigned long long)bio->bi_sector, bio->bi_size);
+        bio_endio(bio, -EIO);
+        return 0;
+    }
+
+    dsk_offset = bio->bi_sector << BLKDEV_SECTORSHIFT;
+    bio_for_each_segment(bvec, bio,i) 
+    {
+        iovec_mem = kmap(bvec->bv_page) + bvec->bv_offset;
+        if(!iovec_mem)
+        {
+            printk(KERN_ERR BLKDEV_DISKNAME ":map iovec page failed:%p\n",bvec->bv_page);
+            goto bio_err;
+        }
+        if(IS_ERR_VALUE(blkdev_trans(dsk_offset,iovec_mem,bvec->bv_len,dir)))
+            goto bio_err;
+        kunmap(bvec->bv_page);
+        dsk_offset+=bvec->bv_len;
+    }
+    bio_endio(bio, 0);
+    return 0;
+
+bio_err:
+    bio_endio(bio,-EIO);
+    return 0;
+}
+
+static int __init blkdev_init(void)
+{
+    int ret = getparam();
+    if(IS_ERR_VALUE(ret))
+        goto err_getparam;
+    blkdev_queue = blk_alloc_queue(GFP_KERNEL);
+    if(!blkdev_queue) {
+        ret = -ENOMEM;
+        goto err_alloc_queue;
+    }
+    blk_queue_make_request(blkdev_queue,&blkdev_make_request);
+
+    blkdev_disk = alloc_disk(BLKDEV_MAXPARTITIONS);
+    if(!blkdev_disk) {
+        goto err_alloc_disk;
+    }
+
+    ret = alloc_diskmem();
+    if(IS_ERR_VALUE(ret))
+        goto err_alloc_diskmem;
+
+    strcpy(blkdev_disk->disk_name, BLKDEV_DISKNAME);
+    blkdev_disk->major = BLKDEV_DEVICEMAJOR;
+    blkdev_disk->first_minor = 0;
+    blkdev_disk->fops = &blkdev_fops;
+    blkdev_disk->queue = blkdev_queue;
+    set_capacity(blkdev_disk, blkdev_bytes>>BLKDEV_SECTORSHIFT); 
+    add_disk(blkdev_disk);
+    return 0;
+
+err_alloc_diskmem:
+    put_disk(blkdev_disk);
+err_alloc_disk:
+    blk_cleanup_queue(blkdev_queue);
+err_alloc_queue:
+err_getparam:
+    return ret;
+}
+
+static void __exit blkdev_exit(void)
+{
+    blk_cleanup_queue(blkdev_queue);
+    del_gendisk(blkdev_disk);
+    free_diskmem();
+    put_disk(blkdev_disk);
+}
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("t4ohi");
+module_init(blkdev_init);
+module_exit(blkdev_exit);

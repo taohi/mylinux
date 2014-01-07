@@ -79,7 +79,6 @@ static struct block_device_operations blkdev_fops = {
  .getgeo=blkdev_getgeo,
 };
 
-
 int alloc_diskmem(void)
 {
     int ret,i;

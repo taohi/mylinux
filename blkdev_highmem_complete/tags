@@ -16,8 +16,6 @@ BLKDEV_SECTORSIZE	blkdev.c	23;"	d	file:
 BLKDEV_SECTOR_MASK	blkdev.c	24;"	d	file:
 KERNELDIR	Makefile	/^	KERNELDIR ?= \/lib\/modules\/$(shell uname -r)\/build$/;"	m
 PWD	Makefile	/^	PWD := $(shell pwd)$/;"	m
-__this_module	blkdev.mod.c	/^struct module __this_module$/;"	v	typeref:struct:module
-__used	blkdev.mod.c	/^__used$/;"	v	file:
 alloc_diskmem	blkdev.c	/^int alloc_diskmem(void)$/;"	f
 blkdev_bytes	blkdev.c	/^static unsigned long long blkdev_bytes;$/;"	v	file:
 blkdev_data	blkdev.c	/^static struct radix_tree_root blkdev_data;$/;"	v	typeref:struct:radix_tree_root	file:

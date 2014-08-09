@@ -78,7 +78,7 @@ static ssize_t globalmem_read(struct file *filp,char __user *buf,size_t size,lof
     else{
         *ppos += count;
         ret  = count;
-        printk(KERN_INFO "read %u bytes from %lu\n",count,p);
+        printk(KERN_INFO "read %u bytes from addr:%lu\n",count,p);
     }
     up(&dev->sem);
     return ret;
@@ -103,7 +103,7 @@ static ssize_t globalmem_write(struct file *filp,const char __user *buf,size_t s
     else{
         *ppos+=count;
         ret=count;
-        printk(KERN_INFO "wrote %u bytes from %lu\n",count,p);
+        printk(KERN_INFO "wrote %u bytes to addr:%lu\n",count,p);
     }
     up(&dev->sem);
     return ret;
@@ -111,38 +111,24 @@ static ssize_t globalmem_write(struct file *filp,const char __user *buf,size_t s
 
 static loff_t globalmem_llseek(struct file *filp,loff_t offset,int orig)
 {
-    loff_t ret = 0;
+    loff_t newpos = 0;
     switch (orig)
     {
         case 0:
-            if(offset < 0){
-                ret = -EINVAL;
-                break;
-            }
-            if((unsigned int)offset >GLOBALMEM_SIZE){
-                ret =-EINVAL;
-                break;
-            }
-            filp->f_pos = (unsigned int)offset;
-            ret = filp->f_pos;
+            newpos = offset;
             break;
         case 1:
-            if((filp->f_pos +offset)>GLOBALMEM_SIZE){
-                ret = -EINVAL;
-                break;
-            }
-            if((filp->f_pos + offset) < 0){
-                ret = -EINVAL;
-                break;
-            }
-            filp->f_pos+=offset;
-            ret=filp->f_pos;
+            newpos = filp->f_pos+offset;
             break;
+        case 2:
+            newpos=GLOBALMEM_SIZE+offset;
         default:
-                ret = -EINVAL;
-                break;
+            return -EINVAL;
     }
-    return ret;
+    if(newpos<0||newpos>GLOBALMEM_SIZE)
+        return -EINVAL;
+    filp->f_pos=newpos;
+    return newpos;
 }
 
 static const struct file_operations globalmem_fops = {
@@ -200,7 +186,7 @@ void globalmem_exit(void)
     unregister_chrdev_region(MKDEV(globalmem_major,0),1);
 }
 
-MODULE_AUTHOR("t4ohi");
+MODULE_AUTHOR("taohi");
 MODULE_LICENSE("Dual BSD/GPL");
 
 module_param(globalmem_major,int,S_IRUGO);
